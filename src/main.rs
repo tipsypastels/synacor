@@ -35,6 +35,7 @@ impl Vm {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), fields(ip = self.ip))]
     fn run_once(&mut self) -> Result<()> {
         let cmd = self.read_literal_value()?.as_u16();
         match cmd {
