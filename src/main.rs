@@ -4,7 +4,10 @@ mod value;
 
 use crate::{num::*, register::*, value::*};
 use anyhow::{Context, Result};
-use std::fs;
+use std::{
+    fs,
+    io::{self, Read},
+};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 struct Vm {
@@ -188,7 +191,16 @@ impl Vm {
             }
             // in a
             20 => {
-                // TODO
+                let a = self.read_register_index_value()?;
+                tracing::trace!("in {a}");
+
+                let mut buf = [0];
+
+                io::stdin()
+                    .read_exact(&mut buf)
+                    .context("failed to read stdin")?;
+
+                self.regs.set(a, u15::new(buf[0] as _)?);
             }
             // noop
             21 => {
