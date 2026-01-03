@@ -8,20 +8,18 @@ use std::fs;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 struct Vm {
-    prog: Vec<u16>,
-    memory: [u16; u15::COUNT],
-    registers: Registers,
+    ram: Vec<u16>,
+    regs: Registers,
     stack: Vec<u15>,
     halted: bool,
     ip: usize,
 }
 
 impl Vm {
-    fn new(prog: Vec<u16>) -> Self {
+    fn new(rom: Vec<u16>) -> Self {
         Self {
-            prog,
-            memory: [0; u15::COUNT],
-            registers: Registers::default(),
+            ram: rom,
+            regs: Registers::default(),
             stack: Vec::new(),
             halted: false,
             ip: 0,
@@ -50,7 +48,7 @@ impl Vm {
                 let a = self.read_register_index_value()?;
                 let b = self.read_resolved_value()?;
                 tracing::trace!("set {a} = {b}");
-                self.registers.set(a, b);
+                self.regs.set(a, b);
             }
             // push a
             2 => {
@@ -63,7 +61,7 @@ impl Vm {
                 let a = self.read_register_index_value()?;
                 tracing::trace!("pop {a}");
                 let s = self.stack.pop().context("empty stack")?;
-                self.registers.set(a, s);
+                self.regs.set(a, s);
             }
             // eq a b c
             4 => {
@@ -71,8 +69,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("eq {a} {b} {c}");
-                self.registers
-                    .set(a, if b == c { u15::ONE } else { u15::ZERO });
+                self.regs.set(a, if b == c { u15::ONE } else { u15::ZERO });
             }
             // gt a b c
             5 => {
@@ -80,8 +77,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("gt {a} {b} {c}");
-                self.registers
-                    .set(a, if b > c { u15::ONE } else { u15::ZERO });
+                self.regs.set(a, if b > c { u15::ONE } else { u15::ZERO });
             }
             // jmp a
             6 => {
@@ -113,7 +109,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("add {a} {b} {c}");
-                self.registers.set(a, b + c);
+                self.regs.set(a, b + c);
             }
             // mult a b c
             10 => {
@@ -121,7 +117,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("mult {a} {b} {c}");
-                self.registers.set(a, b * c);
+                self.regs.set(a, b * c);
             }
             // mod a b c
             11 => {
@@ -129,7 +125,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("mod {a} {b} {c}");
-                self.registers.set(a, b % c);
+                self.regs.set(a, b % c);
             }
             // and a b c
             12 => {
@@ -137,7 +133,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("and {a} {b} {c}");
-                self.registers.set(a, b & c);
+                self.regs.set(a, b & c);
             }
             // or a b c
             13 => {
@@ -145,28 +141,28 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 let c = self.read_resolved_value()?;
                 tracing::trace!("or {a} {b} {c}");
-                self.registers.set(a, b | c);
+                self.regs.set(a, b | c);
             }
             // not a b
             14 => {
                 let a = self.read_register_index_value()?;
                 let b = self.read_resolved_value()?;
                 tracing::trace!("not {a} {b}");
-                self.registers.set(a, !b);
+                self.regs.set(a, !b);
             }
             // rmem 15 a b
             15 => {
                 let a = self.read_register_index_value()?;
                 let b = self.read_resolved_value()?;
                 tracing::trace!("rmem {a} {b}");
-                self.registers.set(a, u15::new(self.memory[b.as_usize()])?);
+                self.regs.set(a, u15::new(self.ram[b.as_usize()])?);
             }
             // wmem 16 a b
             16 => {
                 let a = self.read_resolved_value()?;
                 let b = self.read_resolved_value()?;
                 tracing::trace!("wmem {a} {b}");
-                self.memory[a.as_usize()] = b.as_u16();
+                self.ram[a.as_usize()] = b.as_u16();
             }
             // call a
             17 => {
@@ -205,7 +201,7 @@ impl Vm {
     }
 
     fn read_resolved_value(&mut self) -> Result<u15> {
-        self.read_value().map(|v| v.as_resolved(&self.registers))
+        self.read_value().map(|v| v.as_resolved(&self.regs))
     }
 
     fn read_literal_value(&mut self) -> Result<u15> {
@@ -217,7 +213,7 @@ impl Vm {
     }
 
     fn read_value(&mut self) -> Result<Value> {
-        let v = Value::new(self.prog[self.ip])?;
+        let v = Value::new(self.ram[self.ip])?;
         self.ip += 1;
         Ok(v)
     }
@@ -229,12 +225,12 @@ fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let prog = fs::read("challenge.bin")
+    let rom = fs::read("challenge.bin")
         .context("failed to read binary")?
         .chunks_exact(2)
         .map(|a| u16::from_le_bytes([a[0], a[1]]))
         .collect::<Vec<u16>>();
 
-    let mut vm = Vm::new(prog);
+    let mut vm = Vm::new(rom);
     vm.run()
 }
