@@ -9,7 +9,6 @@ impl u15 {
     pub const ZERO: Self = Self(0);
     pub const ONE: Self = Self(1);
     pub const MAX: Self = Self(32767);
-    pub const COUNT: usize = Self::MAX.0 as _;
 
     pub fn new(v: u16) -> Result<Self> {
         if v > Self::MAX.0 {
