@@ -63,6 +63,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
+name = "hxd"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96c1a5b6216ad8926f6a2aa3b14eff9a4e79e575a40fe8978c6a32894051da44"
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -206,6 +212,7 @@ name = "synacor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hxd",
  "tracing",
  "tracing-subscriber",
 ]

@@ -4,6 +4,7 @@ mod value;
 
 use crate::{num::*, register::*, value::*};
 use anyhow::{Context, Result};
+use hxd::AsHexdGrouped;
 use std::{
     fs,
     io::{self, Read},
@@ -191,15 +192,25 @@ impl Vm {
             }
             // in a
             20 => {
-                let a = self.read_register_index_value()?;
-                tracing::trace!("in {a}");
-
                 let mut buf = [0];
 
-                io::stdin()
-                    .read_exact(&mut buf)
-                    .context("failed to read stdin")?;
+                macro_rules! read_byte {
+                    () => {
+                        io::stdin()
+                            .read_exact(&mut buf)
+                            .context("failed to read stdin")?;
+                    };
+                }
 
+                read_byte!();
+
+                while buf[0] == b'?' {
+                    self.read_internal_command()?;
+                    read_byte!();
+                }
+
+                let a = self.read_register_index_value()?;
+                tracing::trace!("in {a}");
                 self.regs.set(a, u15::new(buf[0] as _)?);
             }
             // noop
@@ -229,6 +240,40 @@ impl Vm {
         let v = Value::new(self.ram[self.ip])?;
         self.ip += 1;
         Ok(v)
+    }
+
+    fn read_internal_command(&mut self) -> Result<()> {
+        let mut buf = String::new();
+
+        io::stdin()
+            .read_line(&mut buf)
+            .context("failed to read internal command")?;
+
+        match buf.trim() {
+            "d" | "dump" => {
+                let file = fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open("dump.hex")
+                    .context("failed to open dump out file")?;
+
+                self.ram
+                    .hexd_le()
+                    .dump_io(file)
+                    .context("hex dump failed")?;
+
+                println!("Hex dumped.");
+            }
+            "r" | "regs" => {
+                self.regs.hexd_le().dump();
+            }
+            _ => {
+                unreachable!("unknown internal command '{buf}'");
+            }
+        }
+
+        Ok(())
     }
 }
 

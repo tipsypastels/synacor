@@ -1,5 +1,6 @@
 use crate::num::u15;
 use anyhow::{Result, anyhow};
+use hxd::{AsHexdGrouped, Hexd, options::Endianness, reader::GroupedSliceByteReader};
 use std::fmt;
 
 #[derive(Default, Debug)]
@@ -12,6 +13,12 @@ impl Registers {
 
     pub fn set(&mut self, register: RegisterIndex, value: u15) {
         self.0[register.0 as usize] = value;
+    }
+}
+
+impl<'a> AsHexdGrouped<'a, GroupedSliceByteReader<'a, u15, 2>> for Registers {
+    fn as_hexd_grouped(&'a self, end: Endianness) -> Hexd<GroupedSliceByteReader<'a, u15, 2>> {
+        self.0.as_hexd_grouped(end)
     }
 }
 

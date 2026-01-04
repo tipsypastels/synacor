@@ -90,6 +90,12 @@ impl ops::Not for u15 {
     }
 }
 
+impl hxd::reader::EndianBytes<2> for u15 {
+    fn to_bytes(&self, end: hxd::options::Endianness) -> [u8; 2] {
+        self.0.to_bytes(end)
+    }
+}
+
 impl fmt::Display for u15 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
