@@ -4,7 +4,7 @@ mod value;
 
 use crate::{num::*, register::*, value::*};
 use anyhow::{Context, Result};
-use hxd::AsHexdGrouped;
+use hxd::{AsHexdGrouped, options::HexdOptionsBuilder};
 use std::{
     fs,
     io::{self, Read},
@@ -12,11 +12,11 @@ use std::{
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 struct Vm {
+    ptr: usize,
     ram: Vec<u16>,
     regs: Registers,
     stack: Vec<u15>,
     halted: bool,
-    ip: usize,
 }
 
 impl Vm {
@@ -26,20 +26,20 @@ impl Vm {
             regs: Registers::default(),
             stack: Vec::new(),
             halted: false,
-            ip: 0,
+            ptr: 0,
         }
     }
 
     fn run(&mut self) -> Result<()> {
         while !self.halted {
             self.run_once()
-                .with_context(|| format!("error at ip '{}'", self.ip))?;
+                .with_context(|| format!("error at ip '{}'", self.ptr))?;
         }
-        println!("halted at {}", self.ip);
+        println!("halted at {}", self.ptr);
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), fields(ip = self.ip))]
+    #[tracing::instrument(skip(self), fields(ip = self.ptr))]
     fn run_once(&mut self) -> Result<()> {
         let cmd = self.read_literal_value()?.as_u16();
         match cmd {
@@ -88,7 +88,7 @@ impl Vm {
             6 => {
                 let a = self.read_resolved_value()?;
                 tracing::trace!("jmp {a}");
-                self.ip = a.as_usize();
+                self.ptr = a.as_usize();
             }
             // jt a b
             7 => {
@@ -96,7 +96,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 tracing::trace!("jt {a} {b}");
                 if a != 0 {
-                    self.ip = b.as_usize();
+                    self.ptr = b.as_usize();
                 }
             }
             // jf a b
@@ -105,7 +105,7 @@ impl Vm {
                 let b = self.read_resolved_value()?;
                 tracing::trace!("jf {a} {b}");
                 if a == 0 {
-                    self.ip = b.as_usize();
+                    self.ptr = b.as_usize();
                 }
             }
             // add a b c
@@ -173,14 +173,14 @@ impl Vm {
             17 => {
                 let a = self.read_resolved_value()?;
                 tracing::trace!("call {a}");
-                self.stack.push(u15::new(self.ip as _)?);
-                self.ip = a.as_usize();
+                self.stack.push(u15::new(self.ptr as _)?);
+                self.ptr = a.as_usize();
             }
             // ret
             18 => {
                 tracing::trace!("ret");
                 if let Some(ip) = self.stack.pop() {
-                    self.ip = ip.as_usize();
+                    self.ptr = ip.as_usize();
                 } else {
                     self.halted = true;
                 }
@@ -218,7 +218,7 @@ impl Vm {
                 tracing::trace!("noop");
             }
             _ => {
-                unreachable!("unknown instruction {} at {}", cmd, self.ip);
+                unreachable!("unknown instruction {} at {}", cmd, self.ptr);
             }
         }
         Ok(())
@@ -237,8 +237,8 @@ impl Vm {
     }
 
     fn read_value(&mut self) -> Result<Value> {
-        let v = Value::new(self.ram[self.ip])?;
-        self.ip += 1;
+        let v = Value::new(self.ram[self.ptr])?;
+        self.ptr += 1;
         Ok(v)
     }
 
@@ -266,7 +266,7 @@ impl Vm {
                 println!("Hex dumped.");
             }
             "r" | "regs" => {
-                self.regs.hexd_le().dump();
+                self.regs.hexd_le().show_index(false).dump();
             }
             _ => {
                 unreachable!("unknown internal command '{buf}'");
