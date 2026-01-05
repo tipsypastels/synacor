@@ -33,13 +33,13 @@ impl Vm {
     fn run(&mut self) -> Result<()> {
         while !self.halted {
             self.run_once()
-                .with_context(|| format!("error at ip '{}'", self.ptr))?;
+                .with_context(|| format!("error at {:08X}", self.ptr))?;
         }
         println!("halted at {}", self.ptr);
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), fields(ip = self.ptr))]
+    #[tracing::instrument(skip(self), fields(ptr = self.ptr))]
     fn run_once(&mut self) -> Result<()> {
         let cmd = self.read_literal_value()?.as_u16();
         match cmd {
@@ -179,8 +179,8 @@ impl Vm {
             // ret
             18 => {
                 tracing::trace!("ret");
-                if let Some(ip) = self.stack.pop() {
-                    self.ptr = ip.as_usize();
+                if let Some(ptr) = self.stack.pop() {
+                    self.ptr = ptr.as_usize();
                 } else {
                     self.halted = true;
                 }
