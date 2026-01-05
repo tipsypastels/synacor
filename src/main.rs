@@ -22,11 +22,11 @@ struct Vm {
 impl Vm {
     fn new(rom: Vec<u16>) -> Self {
         Self {
+            ptr: 0,
             ram: rom,
             regs: Registers::default(),
             stack: Vec::new(),
             halted: false,
-            ptr: 0,
         }
     }
 
